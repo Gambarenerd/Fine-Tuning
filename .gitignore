@@ -1,0 +1,6 @@
+.env
+.venv/
+.DS_Store
+mistral_finetuned/
+resources/*.jsonl
+.idea/
