@@ -4,3 +4,4 @@
 mistral_finetuned/
 resources/*.jsonl
 .idea/
+utils/split_dataset.py

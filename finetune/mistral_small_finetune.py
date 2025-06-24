@@ -38,13 +38,21 @@ train_dataset = dataset.select(range(train_size))
 eval_dataset = dataset.select(range(train_size, len(dataset)))
 
 def tokenize_function(examples):
-    return tokenizer(
-        examples["prompt"],
-        text_target=examples["completion"],
-        truncation=True,
-        padding="max_length",
-        max_length=128
-    )
+    inputs = examples["prompt"]
+    targets = examples["completion"]
+
+    # Tokenizzazione degli input
+    model_inputs = tokenizer(inputs, truncation=True, padding="max_length", max_length=128)
+
+    # Tokenizzazione dei target separata, con as_target_tokenizer (come raccomandato da HuggingFace)
+    with tokenizer.as_target_tokenizer():
+        labels = tokenizer(targets, truncation=True, padding="max_length", max_length=128)["input_ids"]
+
+    # Sostituisci i pad_token con -100 nei label (per non calcolare la loss su di essi)
+    labels = [[(token if token != tokenizer.pad_token_id else -100) for token in label_seq] for label_seq in labels]
+
+    model_inputs["labels"] = labels
+    return model_inputs
 
 train_dataset = train_dataset.map(tokenize_function, batched=True)
 eval_dataset = eval_dataset.map(tokenize_function, batched=True)
@@ -60,7 +68,7 @@ training_args = TrainingArguments(
     logging_steps=10,
     save_strategy="epoch",
     save_total_limit=1,
-    report_to="none",
+    report_to="tensorboard",
     bf16=True  #b float to be compatible with macOS
 )
 

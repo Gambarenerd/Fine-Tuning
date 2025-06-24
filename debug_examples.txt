@@ -1,0 +1,20 @@
+Example 1:
+Translate the following English text to Italian: 'European Parliament'
+Parlamento europeo
+
+Example 2:
+Translate the following English text to Italian: '2024-2029'
+2024-2029
+
+Example 3:
+Translate the following English text to Italian: 'EN'
+IT
+
+Example 4:
+Translate the following English text to Italian: 'AM\1313192 EN.docx PE767.912v01-00 United in diversity'
+AM\1313192 IT.docx PE767.912v01-00 Unita nella diversità
+
+Example 5:
+Translate the following English text to Italian: 'Committee on Development'
+Commissione per lo sviluppo
+
