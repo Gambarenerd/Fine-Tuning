@@ -2,7 +2,7 @@ import json
 import os
 import torch
 from dotenv import load_dotenv
-from transformers import AutoModelForCausalLM, AutoTokenizer, pipeline
+from transformers import AutoModelForCausalLM, AutoTokenizer
 from peft import PeftModel
 import sacrebleu
 from tqdm import tqdm
@@ -10,12 +10,14 @@ from tqdm import tqdm
 load_dotenv()
 
 VAL_FILE = "resources/validation_set.jsonl"
-PRED_BASE_FILE = "resources/predictions_base.jsonl"
-PRED_LORA_FILE = "resources/predictions_lora.jsonl"
+PRED_BASE_FILE = "resources/predictions_base_v2.jsonl"
+PRED_LORA_FILE = "resources/predictions_lora_v2.jsonl"
 
 # Percorsi dei modelli
 BASE_MODEL_PATH = os.getenv("MODEL_PATH")
 FINETUNED_MODEL_PATH = os.getenv("FINETUNED_GPT_MODEL_PATH")
+
+ISO2 = lambda c: c[:2].upper()
 
 def load_model_and_tokenizer(base_model_path, peft_path=None):
     tok   = AutoTokenizer.from_pretrained(base_model_path)
@@ -26,20 +28,34 @@ def load_model_and_tokenizer(base_model_path, peft_path=None):
             )
     if peft_path:
         base = PeftModel.from_pretrained(base, peft_path)
-    base.eval()                       # 🤫 niente grad
+    base.eval()
     return tok, base
 
-def generate_translation(model, tokenizer, src, lang):
-    prompt = f"<s>[INST] Translate to {lang}:\n{src} [/INST]"
+def generate_translation(model, tok, src, lang_code):
+    messages = [
+        {"role":"system",
+         "content":"You are a translation engine. Output ONLY the translated text."},
+        {"role":"user",
+         "content":f"Translate to {ISO2(lang_code)}:\n{src}"}
+    ]
+
+    inputs = tok.apply_chat_template(
+        messages,
+        return_tensors="pt",
+        add_generation_prompt=True
+    ).to(model.device)
+
     ids = model.generate(
-        **tokenizer(prompt, return_tensors="pt").to(model.device),
+        inputs,
         max_new_tokens=128,
         do_sample=False,
-        eos_token_id=tokenizer.eos_token_id,
-        pad_token_id=tokenizer.eos_token_id,
+        eos_token_id=tok.eos_token_id,
+        pad_token_id=tok.eos_token_id,
     )
-    full = tokenizer.decode(ids[0], skip_special_tokens=True)
-    return full.split("[/INST]")[-1].strip()
+
+    # prendi SOLO i token che il modello ha generato
+    gen_tokens = ids[0, inputs.shape[-1]:]
+    return tok.decode(gen_tokens, skip_special_tokens=True).strip()
 
 def main():
     # Carica dataset di valutazione
