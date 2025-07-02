@@ -6,7 +6,7 @@ from peft import PeftModel
 
 load_dotenv()
 BASE_MODEL   = os.getenv("MODEL_PATH")
-LORA_WEIGHTS = os.getenv("FINETUNED_GPT_MODEL_PATH")
+LORA_WEIGHTS = os.getenv("FINETUNED_MODEL_GPT")
 
 # 1️⃣  tokenizer
 tokenizer = AutoTokenizer.from_pretrained(BASE_MODEL)
@@ -56,15 +56,15 @@ lora_model = lora.merge_and_unload()   # modello unico, senza layer LoRA
 lora_model.eval()
 
 # ------------------------------------------------
-def translate(model, text, tgt_lang="French"):
-    user_prompt = f"Translate to {tgt_lang}:\n{text}"
+def translate(model, text, tgt_lang="IT"):
+    user_prompt = f"Translate the following English text to {tgt_lang}: '{text}'"
     chat_prompt = f"<s>[INST] {user_prompt} [/INST]"
 
-    inputs = tokenizer(chat_prompt, return_tensors="pt").to("mps")
+    inputs = tokenizer(chat_prompt, return_tensors="pt").to(model.device)
     with torch.no_grad():
         ids = model.generate(
             **inputs,
-            max_new_tokens=128,
+            max_new_tokens=256,
             temperature=0.0,
             do_sample=False,
             eos_token_id=tokenizer.eos_token_id,
@@ -73,9 +73,7 @@ def translate(model, text, tgt_lang="French"):
     full_text = tokenizer.decode(ids[0], skip_special_tokens=True)
     return full_text.split("[/INST]")[-1].strip()
 
-TEXT = ("Decision No 1/2015 of the Joint Veterinary Committee created by the "
-        "Agreement between the European Community and the Swiss Confederation "
-        "on trade in agricultural products")
+TEXT = ("Decision No 1/2015 of the Joint Veterinary Committee created by the Agreement between the European Community and the Swiss Confederation on trade in agricultural products")
 
 print("\n📌 BASE:")
 print(translate(base, TEXT))
