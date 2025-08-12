@@ -12,12 +12,12 @@ load_dotenv()
 EVAL_BASE = False
 
 VAL_FILE = "resources/validation_set.jsonl"
-PRED_BASE_FILE = "resources/predictions_base_gemini.jsonl"
-PRED_LORA_FILE = "resources/predictions_lora_gemini.jsonl"
+PRED_BASE_FILE = "resources/predictions_base_improved.jsonl"
+PRED_LORA_FILE = "resources/predictions_lora_improved.jsonl"
 
 # Percorsi dei modelli
 BASE_MODEL_PATH = os.getenv("MODEL_PATH")
-FINETUNED_MODEL_PATH = os.getenv("FINETUNED_MODEL_GEMINI")
+FINETUNED_MODEL_PATH = os.getenv("FINETUNED_MODEL_IMPROVED")
 
 ISO2 = lambda c: c[:2].upper()
 
@@ -50,11 +50,11 @@ def main():
     with open(VAL_FILE, "r", encoding="utf-8") as f:
         val_data = [json.loads(line) for line in f]
 
-    print("🔄 Carico modelli...")
+    print("Loading Finetuned Model...")
     tokenizer_lora, model_lora = load_model_and_tokenizer(BASE_MODEL_PATH, FINETUNED_MODEL_PATH)
 
     if EVAL_BASE:
-        print("🔄 Carico modello base …")
+        print("Loading Base Model...")
         tokenizer_base, model_base = load_model_and_tokenizer(BASE_MODEL_PATH)
 
     preds_base, refs_base = [], []

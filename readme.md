@@ -9,7 +9,8 @@ against the gold-standard translations extracted from TMXs files.
 The script mistral_finetune_chatGPT.py with evaluate_model.py 
 shows a (sacre)BLEU score of **52.94 for the finetuned model** against **20.09 for the base one**.
 
-Using the following hyperperameters decreased the BLEU Score for fine-tune model to 12.12 (weird)\
+Using the following hyperperameters decreased the BLEU Score for fine-tune model to **12.12** (weird)\
+**Bleu score: 12.12**\
 MAX_LENGTH   = 256\
 BATCH_SIZE   = 16\
 GRAD_ACCUM   = 2\
@@ -19,3 +20,14 @@ WARMUP_RATIO = 0.05\
 LoRa Rank = 32\
 LoRa Alpha = 32\
 LoRa Dropout = 0.05
+
+**Bleu score: 19.27**\
+MAX_LENGTH   = 256\
+BATCH_SIZE   = 16\
+GRAD_ACCUM   = 2\
+NUM_EPOCHS   = 3\
+LR           = 2e-5\
+WARMUP_RATIO = 0.05\
+LoRa Rank = 8\
+LoRa Alpha = 8\
+LoRa Dropout = 0.1
