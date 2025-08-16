@@ -5,8 +5,8 @@ from transformers import AutoTokenizer, AutoModelForCausalLM
 from peft import PeftModel
 
 load_dotenv()
-BASE_MODEL   = os.getenv("MODEL_PATH")
-LORA_WEIGHTS = os.getenv("FINETUNED_MODEL_IMPROVED")
+BASE_MODEL   = os.getenv("EUROLLM_MODEL_PATH")
+LORA_WEIGHTS = os.getenv("EUROLLM_LORA_ADAPTER")
 
 # 1️⃣  tokenizer
 tokenizer = AutoTokenizer.from_pretrained(BASE_MODEL)
