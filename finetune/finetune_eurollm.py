@@ -8,10 +8,11 @@ from transformers import (AutoTokenizer, AutoModelForCausalLM,
 from peft import LoraConfig
 from trl import SFTTrainer
 
-# Disabilita il warning dei tokenizers
+# This is the winner: EuroLLM LoRA fine-tuned BLEU score: 86.76
+
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
-# --- 0. parametri base --------------------------------------------
+# --- 0. basic parameters --------------------------------------------
 load_dotenv()
 MODEL_ID = os.getenv("EUROLLM_MODEL_PATH")
 DATA_PATH = os.getenv("DATASET_PATH")
@@ -26,10 +27,10 @@ LR = 2e-5
 WARMUP = 0.05
 EVAL_EVERY_STEPS = 500
 
-# ✅ Marker semplice
+#Marker
 MARKER = "### Answer:"
 
-# --- 1. modello & tokenizer ---------------------------------------
+# --- 1. model & tokenizer ---------------------------------------
 tok = AutoTokenizer.from_pretrained(MODEL_ID)
 if tok.pad_token is None:
     tok.pad_token = tok.eos_token
@@ -42,7 +43,7 @@ model = AutoModelForCausalLM.from_pretrained(
     MODEL_ID,
     device_map={"": "mps"},
     low_cpu_mem_usage=False,
-    torch_dtype=torch.float16
+    torch_dtype=torch.bfloat16
 )
 model.config.use_cache = False
 model.gradient_checkpointing_enable()
@@ -64,14 +65,13 @@ ds = load_dataset("json", data_files=DATA_PATH, split="train")
 def merge_cols(ex):
     prompt = ex["prompt"].strip()
     completion = ex["completion"].strip()
-    # ✅ Formato pulito con newline
     ex["text"] = f"{prompt}\n{MARKER}\n{completion}"
     return ex
 
 # Applica la trasformazione
 ds = ds.map(merge_cols, remove_columns=("prompt", "completion"))
 
-# ✅ Filtra esempi troppo lunghi DOPO la tokenizzazione per evitare troncamenti
+# Filtra examples longer than MAX_LEN
 def filter_length(example):
     tokens = tok.encode(example["text"], add_special_tokens=True)
     return len(tokens) <= MAX_LEN
@@ -84,23 +84,23 @@ print(f"Dataset size after filtering: {len(ds)}")
 split = ds.train_test_split(test_size=0.1, seed=42)
 train_ds, eval_ds = split["train"], split["test"]
 
-# --- 4. Test del formato dati -------------------------------------
+# --- 4. Test data format -------------------------------------
 print("\n--- Testing data format ---")
 sample_text = train_ds[0]["text"]
 print("Sample text:", sample_text[:200] + "...")
 
-# Conta i token
+# Counts token
 tokens = tok.encode(sample_text, add_special_tokens=True)
 print(f"Token count: {len(tokens)}")
 
-# Verifica che il marker sia presente nel testo
+# Verify that marker is present in the text
 marker_in_text = MARKER in sample_text
 print(f"Marker found in text: {marker_in_text}")
 
 if marker_in_text:
-    print("✅ Data format is correct")
+    print("Data format is correct")
 else:
-    print("❌ Marker not found in text - check formatting")
+    print("Marker not found in text - check formatting")
     print("First few examples:")
     for i in range(min(3, len(train_ds))):
         print(f"Example {i}: {train_ds[i]['text'][:100]}...")
@@ -126,52 +126,50 @@ args = TrainingArguments(
     fp16=False,
     bf16=False,
     dataloader_drop_last=False,
-    remove_unused_columns=False,  # ✅ Importante per SFTTrainer
+    remove_unused_columns=False,  #Important for SFTTrainer
 )
 
-# --- 6. SFTTrainer (versione compatibile) ------------------------
+# --- 6. SFTTrainer ------------------------
 print("\n--- Initializing SFTTrainer ---")
 
-# ✅ Versione base compatibile con TRL vecchie
 trainer = SFTTrainer(
     model=model,
     train_dataset=train_ds,
     eval_dataset=eval_ds,
     peft_config=lora_cfg,
     args=args,
-    # ✅ Rimuovo parametri non supportati nelle versioni vecchie
     callbacks=[EarlyStoppingCallback(early_stopping_patience=2)],
 )
 
-print("✅ SFTTrainer initialized successfully")
+print("SFTTrainer initialized successfully")
 
 # --- 7. Training --------------------------------------------------
 print("\n--- Starting training ---")
 trainer.train()
 
-# Salva il modello
+# Salva model
 trainer.model.save_pretrained(ADAPTER_DIR)
 print(f"Fine-tuning completed — LoRa adapter stored in {ADAPTER_DIR}")
 
-# --------- Statistiche training -----------------------------------
+# --------- Statistics -----------------------------------
 effective_batch = BATCH * GRAD_ACC
 steps_per_epoch = math.ceil(len(train_ds) / effective_batch)
 total_steps = steps_per_epoch * EPOCHS
-print(f"ℹ️  ~{steps_per_epoch} step/epoch → {total_steps} step in totale")
+print(f"  ~{steps_per_epoch} step/epoch → {total_steps} step in totale")
 
-# --- 8. Test di inferenza veloce ----------------------------------
+# --- 8. fast inference test ----------------------------------
 print("\n--- Quick inference test ---")
 model.eval()
 
 test_prompt = "Translate the following English text to IT: 'Hello world'"
 test_input = f"{test_prompt}\n{MARKER}\n"
 
-# Tokenizza input
+# Tokenization
 inputs = tok.encode(test_input, return_tensors="pt", add_special_tokens=True)
 print(f"Test input: {test_input}")
 print(f"Input tokens: {inputs.shape}")
 
-# Genera risposta
+# Generating response
 with torch.no_grad():
     outputs = model.generate(
         inputs.to(model.device),
@@ -182,11 +180,11 @@ with torch.no_grad():
         eos_token_id=tok.eos_token_id
     )
 
-# Decodifica output
+# Output
 full_text = tok.decode(outputs[0], skip_special_tokens=True)
 generated_text = full_text[len(test_input):].strip()
 
 print(f"Generated: {generated_text}")
 print(f"Full output: {full_text}")
 
-print("\n🎉 Training completed successfully!")
+print("\n Training completed successfully!")
