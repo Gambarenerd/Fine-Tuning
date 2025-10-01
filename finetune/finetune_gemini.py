@@ -27,7 +27,7 @@ LR = 2e-5
 WARMUP = 0.05
 EVAL_EVERY_STEPS = 500
 
-# ✅ Marker semplice
+#Marker semplice
 MARKER = "### Answer:"
 
 # --- 1. modello & tokenizer ---------------------------------------
@@ -65,14 +65,14 @@ ds = load_dataset("json", data_files=DATA_PATH, split="train")
 def merge_cols(ex):
     prompt = ex["prompt"].strip()
     completion = ex["completion"].strip()
-    # ✅ Formato pulito con newline
+    # Formato pulito con newline
     ex["text"] = f"{prompt}\n{MARKER}\n{completion}"
     return ex
 
 # Applica la trasformazione
 ds = ds.map(merge_cols, remove_columns=("prompt", "completion"))
 
-# ✅ Filtra esempi troppo lunghi DOPO la tokenizzazione per evitare troncamenti
+# Filtra esempi troppo lunghi DOPO la tokenizzazione per evitare troncamenti
 def filter_length(example):
     tokens = tok.encode(example["text"], add_special_tokens=True)
     return len(tokens) <= MAX_LEN
@@ -99,9 +99,9 @@ marker_in_text = MARKER in sample_text
 print(f"Marker found in text: {marker_in_text}")
 
 if marker_in_text:
-    print("✅ Data format is correct")
+    print("Data format is correct")
 else:
-    print("❌ Marker not found in text - check formatting")
+    print("Marker not found in text - check formatting")
     print("First few examples:")
     for i in range(min(3, len(train_ds))):
         print(f"Example {i}: {train_ds[i]['text'][:100]}...")
@@ -127,13 +127,13 @@ args = TrainingArguments(
     fp16=False,
     bf16=False,
     dataloader_drop_last=False,
-    remove_unused_columns=False,  # ✅ Importante per SFTTrainer
+    remove_unused_columns=False,  #Importante per SFTTrainer
 )
 
 # --- 6. SFTTrainer (versione compatibile) ------------------------
 print("\n--- Initializing SFTTrainer ---")
 
-# ✅ Versione base compatibile con TRL vecchie
+# Versione base compatibile con TRL vecchie
 trainer = SFTTrainer(
     model=model,
     train_dataset=train_ds,
@@ -143,7 +143,7 @@ trainer = SFTTrainer(
     callbacks=[EarlyStoppingCallback(early_stopping_patience=2)],
 )
 
-print("✅ SFTTrainer initialized successfully")
+print("SFTTrainer initialized successfully")
 
 # --- 7. Training --------------------------------------------------
 print("\n--- Starting training ---")
@@ -157,7 +157,7 @@ print(f"Fine-tuning completed — LoRa adapter stored in {ADAPTER_DIR}")
 effective_batch = BATCH * GRAD_ACC
 steps_per_epoch = math.ceil(len(train_ds) / effective_batch)
 total_steps = steps_per_epoch * EPOCHS
-print(f"ℹ️  ~{steps_per_epoch} step/epoch → {total_steps} step in totale")
+print(f"  ~{steps_per_epoch} step/epoch → {total_steps} step in totale")
 
 # --- 8. Test di inferenza veloce ----------------------------------
 print("\n--- Quick inference test ---")
@@ -189,4 +189,4 @@ generated_text = full_text[len(test_input):].strip()
 print(f"Generated: {generated_text}")
 print(f"Full output: {full_text}")
 
-print("\n🎉 Training completed successfully!")
+print("\n Training completed successfully!")

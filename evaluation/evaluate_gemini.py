@@ -7,11 +7,9 @@ from peft import PeftModel
 import sacrebleu
 from tqdm import tqdm
 
-# Carica le variabili d'ambiente (percorsi dei modelli)
 load_dotenv()
 
 # --- IMPOSTAZIONI ---
-# Imposta a True se vuoi valutare anche il modello base per confronto
 EVAL_BASE = True
 # File di validazione e output
 VAL_FILE = "resources/validation_set.jsonl"
