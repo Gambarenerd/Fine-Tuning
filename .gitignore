@@ -1,7 +1,6 @@
 .env
 .venv/
 .DS_Store
-resources/*.jsonl
 .idea/
 utils/split_dataset.py
 checkpoint/
