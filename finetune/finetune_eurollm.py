@@ -1,5 +1,5 @@
 import os, math, sacrebleu, numpy as np
-
+import torch.distributed as dist
 import torch
 from dotenv import load_dotenv
 from datasets import load_dataset
@@ -10,10 +10,25 @@ from trl import SFTTrainer
 
 # This is the winner: EuroLLM LoRA fine-tuned BLEU score: 86.76
 
+if torch.cuda.is_available():
+    print("CUDA available")
+    print("CUDA_VISIBLE_DEVICES:", os.environ.get("CUDA_VISIBLE_DEVICES"))
+    print("GPU:", torch.cuda.get_device_name(0))
+else:
+    print("CUDA NOT available")
+
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
 # Basic Parameters
 load_dotenv()
+
+local_rank = int(os.environ.get("LOCAL_RANK", "0"))
+device = f"cuda:{local_rank}" if torch.cuda.is_available() else "cpu"
+if torch.cuda.is_available():
+    torch.cuda.set_device(local_rank)
+
+is_main = int(os.environ.get("RANK", "0")) == 0
+
 MODEL_ID = os.getenv("EUROLLM_MODEL_PATH")
 DATA_PATH = os.getenv("DATASET_PATH")
 OUT_DIR = "./checkpoint"
@@ -30,7 +45,7 @@ EVAL_EVERY_STEPS = 500
 #Marker
 MARKER = "### Answer:"
 
-tok = AutoTokenizer.from_pretrained(MODEL_ID)
+tok = AutoTokenizer.from_pretrained(MODEL_ID, local_files_only=True)
 if tok.pad_token is None:
     tok.pad_token = tok.eos_token
 
@@ -40,12 +55,13 @@ print("MARKER decoded:", tok.decode(tok.encode(MARKER, add_special_tokens=False)
 
 model = AutoModelForCausalLM.from_pretrained(
     MODEL_ID,
-    device_map={"": "mps"},
-    low_cpu_mem_usage=False,
-    torch_dtype=torch.bfloat16
+    torch_dtype=torch.bfloat16,
+    low_cpu_mem_usage=True,
+    local_files_only=True
 )
+model = model.to(device)
 model.config.use_cache = False
-model.gradient_checkpointing_enable()
+#model.gradient_checkpointing_enable()
 
 # LoRa config
 lora_cfg = LoraConfig(
@@ -118,12 +134,13 @@ args = TrainingArguments(
     load_best_model_at_end=True,
     metric_for_best_model="eval_loss",
     greater_is_better=False,
-    report_to="tensorboard",
+    report_to="none",
     save_total_limit=1,
     fp16=False,
-    bf16=False,
+    bf16=True,
     dataloader_drop_last=False,
-    remove_unused_columns=False,  #Important for SFTTrainer
+    remove_unused_columns=False,
+    ddp_find_unused_parameters=False,
 )
 
 # SFTTrainer
@@ -145,8 +162,10 @@ print("\n--- Starting training ---")
 trainer.train()
 
 # Save LoRa Adapter
-trainer.model.save_pretrained(ADAPTER_DIR)
-print(f"Fine-tuning completed — LoRa adapter stored in {ADAPTER_DIR}")
+if is_main:
+    trainer.model.save_pretrained(ADAPTER_DIR)
+    tok.save_pretrained(ADAPTER_DIR)
+    print(f"Fine-tuning completed — LoRa adapter stored in {ADAPTER_DIR}")
 
 # Statistics
 effective_batch = BATCH * GRAD_ACC
@@ -156,20 +175,21 @@ print(f"  ~{steps_per_epoch} step/epoch → {total_steps} step in totale")
 
 # Fast inference test
 print("\n--- Quick inference test ---")
-model.eval()
+ft_model = trainer.model
+ft_model.eval()
 
 test_prompt = "Translate the following English text to IT: 'Hello world'"
 test_input = f"{test_prompt}\n{MARKER}\n"
 
 # Tokenization
-inputs = tok.encode(test_input, return_tensors="pt", add_special_tokens=True)
+inputs_ids = tok.encode(test_input, return_tensors="pt", add_special_tokens=True).to(ft_model.device)
 print(f"Test input: {test_input}")
-print(f"Input tokens: {inputs.shape}")
+print(f"Input tokens: {tuple(inputs_ids.shape)}")
 
 # Generating response
 with torch.no_grad():
-    outputs = model.generate(
-        inputs.to(model.device),
+    outputs = ft_model.generate(
+        inputs_ids,
         max_new_tokens=50,
         temperature=0.7,
         do_sample=True,
@@ -178,10 +198,19 @@ with torch.no_grad():
     )
 
 # Output
+gen_ids = outputs[0][inputs_ids.shape[-1]:]
+generated_text = tok.decode(gen_ids, skip_special_tokens=True).strip()
 full_text = tok.decode(outputs[0], skip_special_tokens=True)
-generated_text = full_text[len(test_input):].strip()
 
 print(f"Generated: {generated_text}")
 print(f"Full output: {full_text}")
 
+# --- Clean DDP shutdown (NCCL) ---
+if dist.is_available() and dist.is_initialized():
+    dist.barrier()
+    dist.destroy_process_group()
+
 print("\n Training completed successfully!")
+
+
+
