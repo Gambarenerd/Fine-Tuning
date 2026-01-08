@@ -12,7 +12,7 @@ from trl import SFTTrainer
 
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
-# --- 0. basic parameters --------------------------------------------
+# Basic Parameters
 load_dotenv()
 MODEL_ID = os.getenv("EUROLLM_MODEL_PATH")
 DATA_PATH = os.getenv("DATASET_PATH")
@@ -30,7 +30,6 @@ EVAL_EVERY_STEPS = 500
 #Marker
 MARKER = "### Answer:"
 
-# --- 1. model & tokenizer ---------------------------------------
 tok = AutoTokenizer.from_pretrained(MODEL_ID)
 if tok.pad_token is None:
     tok.pad_token = tok.eos_token
@@ -48,7 +47,7 @@ model = AutoModelForCausalLM.from_pretrained(
 model.config.use_cache = False
 model.gradient_checkpointing_enable()
 
-# --- 2. LoRA -------------------------------------------------------
+# LoRa config
 lora_cfg = LoraConfig(
     r=8,
     lora_alpha=16,
@@ -59,7 +58,7 @@ lora_cfg = LoraConfig(
                     "gate_proj", "up_proj", "down_proj"],
 )
 
-# --- 3. dataset + split 90/10 -------------------------------------
+# Dataset split
 ds = load_dataset("json", data_files=DATA_PATH, split="train")
 
 def merge_cols(ex):
@@ -68,10 +67,9 @@ def merge_cols(ex):
     ex["text"] = f"{prompt}\n{MARKER}\n{completion}"
     return ex
 
-# Applica la trasformazione
 ds = ds.map(merge_cols, remove_columns=("prompt", "completion"))
 
-# Filtra examples longer than MAX_LEN
+# Filter too long samples
 def filter_length(example):
     tokens = tok.encode(example["text"], add_special_tokens=True)
     return len(tokens) <= MAX_LEN
@@ -84,7 +82,6 @@ print(f"Dataset size after filtering: {len(ds)}")
 split = ds.train_test_split(test_size=0.1, seed=42)
 train_ds, eval_ds = split["train"], split["test"]
 
-# --- 4. Test data format -------------------------------------
 print("\n--- Testing data format ---")
 sample_text = train_ds[0]["text"]
 print("Sample text:", sample_text[:200] + "...")
@@ -105,7 +102,7 @@ else:
     for i in range(min(3, len(train_ds))):
         print(f"Example {i}: {train_ds[i]['text'][:100]}...")
 
-# --- 5. TrainingArguments -----------------------------------------
+# TrainingArguments
 args = TrainingArguments(
     output_dir=OUT_DIR,
     num_train_epochs=EPOCHS,
@@ -129,7 +126,7 @@ args = TrainingArguments(
     remove_unused_columns=False,  #Important for SFTTrainer
 )
 
-# --- 6. SFTTrainer ------------------------
+# SFTTrainer
 print("\n--- Initializing SFTTrainer ---")
 
 trainer = SFTTrainer(
@@ -143,21 +140,21 @@ trainer = SFTTrainer(
 
 print("SFTTrainer initialized successfully")
 
-# --- 7. Training --------------------------------------------------
+# Training
 print("\n--- Starting training ---")
 trainer.train()
 
-# Salva model
+# Save LoRa Adapter
 trainer.model.save_pretrained(ADAPTER_DIR)
 print(f"Fine-tuning completed — LoRa adapter stored in {ADAPTER_DIR}")
 
-# --------- Statistics -----------------------------------
+# Statistics
 effective_batch = BATCH * GRAD_ACC
 steps_per_epoch = math.ceil(len(train_ds) / effective_batch)
 total_steps = steps_per_epoch * EPOCHS
 print(f"  ~{steps_per_epoch} step/epoch → {total_steps} step in totale")
 
-# --- 8. fast inference test ----------------------------------
+# Fast inference test
 print("\n--- Quick inference test ---")
 model.eval()
 
