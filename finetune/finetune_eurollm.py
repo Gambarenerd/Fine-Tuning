@@ -30,7 +30,8 @@ if torch.cuda.is_available():
 is_main = int(os.environ.get("RANK", "0")) == 0
 
 MODEL_ID = os.getenv("EUROLLM_MODEL_PATH")
-DATA_PATH = os.getenv("DATASET_PATH")
+TRAIN_PATH = os.getenv("TRAIN_DATASET_PATH")
+EVAL_PATH = os.getenv("EVAL_DATASET_PATH")
 OUT_DIR = "./checkpoint"
 ADAPTER_DIR = os.getenv("EUROLLM_LORA_ADAPTER")
 
@@ -74,8 +75,9 @@ lora_cfg = LoraConfig(
                     "gate_proj", "up_proj", "down_proj"],
 )
 
-# Dataset split
-ds = load_dataset("json", data_files=DATA_PATH, split="train")
+# Load datasets
+train_ds = load_dataset("json", data_files=TRAIN_PATH, split="train")
+eval_ds = load_dataset("json", data_files=EVAL_PATH, split="train")
 
 def merge_cols(ex):
     prompt = ex["prompt"].strip()
@@ -83,20 +85,21 @@ def merge_cols(ex):
     ex["text"] = f"{prompt}\n{MARKER}\n{completion}"
     return ex
 
-ds = ds.map(merge_cols, remove_columns=("prompt", "completion"))
+train_ds = train_ds.map(merge_cols, remove_columns=("prompt", "completion"))
+eval_ds = eval_ds.map(merge_cols, remove_columns=("prompt", "completion"))
 
 # Filter too long samples
 def filter_length(example):
     tokens = tok.encode(example["text"], add_special_tokens=True)
     return len(tokens) <= MAX_LEN
 
-print(f"Dataset size before filtering: {len(ds)}")
-ds = ds.filter(filter_length)
-print(f"Dataset size after filtering: {len(ds)}")
+print(f"Train dataset size before filtering: {len(train_ds)}")
+train_ds = train_ds.filter(filter_length)
+print(f"Train dataset size after filtering: {len(train_ds)}")
 
-# Split train/eval
-split = ds.train_test_split(test_size=0.1, seed=42)
-train_ds, eval_ds = split["train"], split["test"]
+print(f"Eval dataset size before filtering: {len(eval_ds)}")
+eval_ds = eval_ds.filter(filter_length)
+print(f"Eval dataset size after filtering: {len(eval_ds)}")
 
 print("\n--- Testing data format ---")
 sample_text = train_ds[0]["text"]
