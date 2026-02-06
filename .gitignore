@@ -4,3 +4,4 @@
 .idea/
 utils/split_dataset.py
 checkpoint/
+resources/
