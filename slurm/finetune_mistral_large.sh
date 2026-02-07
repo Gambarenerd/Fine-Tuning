@@ -44,4 +44,4 @@ torchrun \
     --nproc_per_node=6 \
     --master_addr="${MASTER_ADDR}" \
     --master_port="${MASTER_PORT}" \
-    code/finetune_mistral_large.py
+    code/finetune/mistral/finetune_mistral_large.py

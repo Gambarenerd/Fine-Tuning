@@ -89,10 +89,10 @@ model.config.use_cache = False
 if is_main:
     print(f"Model loaded. Memory used: {torch.cuda.memory_allocated(device) / 1e9:.2f} GB")
 
-# LoRA config — r=16, alpha=32 for larger model
+# LoRA config — r=32, alpha=64 for larger model (more capacity)
 lora_cfg = LoraConfig(
-    r=16,
-    lora_alpha=32,
+    r=32,
+    lora_alpha=64,
     lora_dropout=0.05,
     bias="none",
     task_type="CAUSAL_LM",
@@ -189,7 +189,7 @@ if is_main:
 # Training (resume from checkpoint if available)
 if is_main:
     print("\n--- Starting training ---")
-trainer.train(resume_from_checkpoint=True)
+trainer.train()
 
 # Save LoRA Adapter (only on main process)
 if is_main:
